@@ -1,0 +1,77 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write # post the coverage comment on PRs
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COVERAGE_THRESHOLD: "85"
+
+jobs:
+  test:
+    name: Unit tests & coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Coverage report
+        id: coverage
+        run: |
+          go tool cover -func=coverage.out > coverage.txt
+          go tool cover -html=coverage.out -o coverage.html
+          total=$(awk '/^total:/ {sub("%","",$3); print $3}' coverage.txt)
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Coverage: ${total}% (threshold ${COVERAGE_THRESHOLD}%)"
+            echo
+            echo "<details><summary>Per-function coverage</summary>"
+            echo
+            echo '```'
+            cat coverage.txt
+            echo '```'
+            echo "</details>"
+          } > coverage.md
+          cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage.md
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.txt
+            coverage.html
+
+      - name: Enforce coverage threshold
+        run: |
+          total=${{ steps.coverage.outputs.total }}
+          if awk -v t="$total" -v min="$COVERAGE_THRESHOLD" 'BEGIN { exit !(t < min) }'; then
+            echo "::error::Coverage ${total}% is below the ${COVERAGE_THRESHOLD}% threshold"
+            exit 1
+          fi
+          echo "Coverage ${total}% meets the ${COVERAGE_THRESHOLD}% threshold"

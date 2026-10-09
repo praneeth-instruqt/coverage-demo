@@ -8,7 +8,9 @@ A Todo REST API in Go with user authentication, built only on the standard libra
 - **CRUD for todos**: each todo belongs to one user, and other users get a 404 for it.
 - **Listing**: filter by status or priority, search text, and paginate.
 - **Middleware**: request IDs, structured JSON logging (`slog`), panic recovery and graceful shutdown.
-- **CI**: GitHub Actions runs gofmt, vet, golangci-lint, race-enabled tests with a coverage gate, a binary build and a Docker build.
+- **CI**: two GitHub Actions workflows run on every PR into `main` and every push to `main`:
+  - `test.yaml`: race-enabled tests, a coverage report in the job summary and as a PR comment, and an 85% coverage gate.
+  - `ci.yml`: gofmt, vet, golangci-lint, a binary build and a Docker build.
 
 ## Quick start
 
@@ -71,7 +73,7 @@ internal/auth/     users, password hashing, JWT tokens
 internal/config/   environment configuration
 internal/store/    Store interfaces + thread-safe in-memory implementation
 internal/todo/     Todo domain model and validation
-.github/workflows/ ci.yml (test/lint/build), release.yml (GHCR image on v* tags)
+.github/workflows/ test.yaml (tests + coverage), ci.yml (lint + build)
 ```
 
 Data is kept in memory, so it is lost on restart. To make it persistent, implement `store.Store` (for example on Postgres) and pass it in `cmd/server/main.go`.
