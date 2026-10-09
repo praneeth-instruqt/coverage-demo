@@ -152,3 +152,14 @@ func TestIsValidationError(t *testing.T) {
 		}
 	}
 }
+
+func TestOverdue(t *testing.T) {
+	now := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	past, future := now.Add(-time.Hour), now.Add(time.Hour)
+	if !(Todo{DueDate: &past}).Overdue(now) {
+		t.Error("past due should be overdue")
+	}
+	if (Todo{DueDate: &future}).Overdue(now) || (Todo{}).Overdue(now) || (Todo{DueDate: &past, Completed: true}).Overdue(now) {
+		t.Error("unexpected overdue")
+	}
+}
