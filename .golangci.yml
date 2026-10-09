@@ -17,3 +17,6 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec]
+      # CLI tooling that reads and writes the paths it is given on purpose.
+      - path: ^tools/
+        linters: [gosec]

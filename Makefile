@@ -14,11 +14,8 @@ test:
 
 cover:
 	go test -race -covermode=atomic -coverprofile=coverage.out ./...
-	go tool cover -func=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
-	@total=$$(go tool cover -func=coverage.out | awk '/^total:/ {sub("%","",$$3); print $$3}'); \
-	echo "Total coverage: $$total% (threshold $(COVERAGE_THRESHOLD)%)"; \
-	awk -v t=$$total -v min=$(COVERAGE_THRESHOLD) 'BEGIN { exit (t < min) }'
+	go run ./tools/coverage -threshold $(COVERAGE_THRESHOLD) -report COVERAGE.md
 
 lint:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run

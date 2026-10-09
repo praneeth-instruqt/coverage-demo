@@ -9,7 +9,7 @@ A Todo REST API in Go with user authentication, built only on the standard libra
 - **Listing**: filter by status or priority, search text, and paginate.
 - **Middleware**: request IDs, structured JSON logging (`slog`), panic recovery and graceful shutdown.
 - **CI**: two GitHub Actions workflows run on every PR into `main` and every push to `main`:
-  - `test.yaml`: race-enabled tests, a coverage report in the job summary and as a PR comment, and an 85% coverage gate.
+  - `test.yaml`: race-enabled tests and the coverage workflow described below.
   - `ci.yml`: gofmt, vet, golangci-lint, a binary build and a Docker build.
 
 ## Quick start
@@ -17,7 +17,7 @@ A Todo REST API in Go with user authentication, built only on the standard libra
 ```sh
 make run                       # starts on :8080 with a dev JWT secret
 make test                      # unit tests with -race
-make cover                     # coverage report + coverage.html, fails below 85%
+make cover                     # per-file coverage, regenerates COVERAGE.md + coverage.html
 make lint                      # golangci-lint
 make docker                    # build container image
 ```
@@ -64,6 +64,27 @@ curl -s -X POST localhost:8080/api/v1/todos -H "Authorization: Bearer $TOKEN" \
 curl -s "localhost:8080/api/v1/todos?completed=false" -H "Authorization: Bearer $TOKEN"
 ```
 
+## Code coverage
+
+[`COVERAGE.md`](COVERAGE.md) lists the coverage of every file and the overall percentage. CI regenerates it and commits it to `main` after each merge, so don't edit it by hand.
+
+On every push to a branch, `test.yaml` runs the tests and computes coverage. If the branch has an open PR into `main`:
+
+- **PR description**: a coverage section is added, or replaced on later pushes. It shows the overall percentage and the coverage of each file the PR changes. Text you write in the description is kept.
+- **Below 85%**: the section adds a table of the files pulling the total down. Each row shows the file's coverage, its uncovered statements and its **impact**, meaning how many percentage points the total would rise if that file were fully covered. Uncovered lines that the PR adds also get inline review comments, and the check fails.
+- **Each new push** replaces the previous run's line comments, so they stay current.
+
+### Excluding files
+
+Add paths to [`.coverageignore`](.coverageignore) to leave them out of the overall percentage. They are still listed in `COVERAGE.md` under "Excluded". Each line is one of:
+
+```
+internal/legacy/          # a whole directory
+cmd/server/main.go        # a single file
+internal/*/mock_*.go      # a glob on the full path
+*_gen.go                  # a glob on the file name
+```
+
 ## Layout
 
 ```
@@ -73,6 +94,7 @@ internal/auth/     users, password hashing, JWT tokens
 internal/config/   environment configuration
 internal/store/    Store interfaces + thread-safe in-memory implementation
 internal/todo/     Todo domain model and validation
+tools/coverage/    coverage report generator used by CI (COVERAGE.md, PR section, line comments)
 .github/workflows/ test.yaml (tests + coverage), ci.yml (lint + build)
 ```
 

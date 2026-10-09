@@ -3,3 +3,6 @@ coverage.out
 coverage.txt
 coverage.html
 .env
+pr.diff
+pr-section.md
+comments.json
