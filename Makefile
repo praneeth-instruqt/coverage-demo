@@ -21,7 +21,7 @@ cover:
 	awk -v t=$$total -v min=$(COVERAGE_THRESHOLD) 'BEGIN { exit (t < min) }'
 
 lint:
-	golangci-lint run
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run
 
 fmt:
 	gofmt -w .

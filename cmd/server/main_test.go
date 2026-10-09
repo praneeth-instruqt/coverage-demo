@@ -16,8 +16,11 @@ func freeAddr(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
-	return l.Addr().String()
+	addr := l.Addr().String()
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return addr
 }
 
 func testEnv(vars map[string]string) func(string) string {
@@ -42,7 +45,7 @@ func TestRunServesAndShutsDown(t *testing.T) {
 	for {
 		res, err := http.Get("http://" + addr + "/healthz")
 		if err == nil {
-			res.Body.Close()
+			_ = res.Body.Close()
 			if res.StatusCode != http.StatusOK {
 				t.Fatalf("healthz = %d", res.StatusCode)
 			}
@@ -76,7 +79,7 @@ func TestRunListenError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 
 	err = run(context.Background(), discard, testEnv(map[string]string{
 		"ADDR":            l.Addr().String(), // already in use
