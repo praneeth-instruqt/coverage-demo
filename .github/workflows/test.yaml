@@ -1,18 +1,23 @@
 name: Test
 
+# Runs on every push to any branch. If the branch has an open PR into main,
+# the PR description gets a coverage section and, when total coverage is below
+# the threshold, uncovered new lines get inline review comments.
+# On main, COVERAGE.md is regenerated and committed when it changes.
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
     branches: [main]
+    types: [opened, reopened, ready_for_review] # new commits are handled by `push`
 
 permissions:
-  contents: read
-  pull-requests: write # post the coverage comment on PRs
+  contents: write # commit COVERAGE.md on main
+  pull-requests: write # PR description + review comments
 
 concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
+  group: test-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   COVERAGE_THRESHOLD: "85"
@@ -23,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -31,32 +39,35 @@ jobs:
       - name: Run tests
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
-      - name: Coverage report
-        id: coverage
+      - name: Find pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
         run: |
-          go tool cover -func=coverage.out > coverage.txt
-          go tool cover -html=coverage.out -o coverage.html
-          total=$(awk '/^total:/ {sub("%","",$3); print $3}' coverage.txt)
-          echo "total=$total" >> "$GITHUB_OUTPUT"
+          number="$EVENT_PR"
+          if [ -z "$number" ] && [ "$BRANCH" != "main" ]; then
+            number=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "PR: ${number:-none}"
 
-          {
-            echo "## Coverage: ${total}% (threshold ${COVERAGE_THRESHOLD}%)"
-            echo
-            echo "<details><summary>Per-function coverage</summary>"
-            echo
-            echo '```'
-            cat coverage.txt
-            echo '```'
-            echo "</details>"
-          } > coverage.md
-          cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Diff against main
+        if: steps.pr.outputs.number != ''
+        run: git diff --unified=0 origin/main...HEAD -- '*.go' > pr.diff
 
-      - name: Comment coverage on PR
-        if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: coverage
-          path: coverage.md
+      - name: Analyze coverage
+        id: cov
+        run: |
+          args=(-profile coverage.out -ignore .coverageignore -threshold "$COVERAGE_THRESHOLD"
+                -report COVERAGE.md -pr-section pr-section.md -github-output "$GITHUB_OUTPUT")
+          if [ -f pr.diff ]; then
+            args+=(-diff pr.diff -comments comments.json)
+          fi
+          go run ./tools/coverage "${args[@]}"
+          cat pr-section.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
@@ -64,14 +75,74 @@ jobs:
           name: coverage
           path: |
             coverage.out
-            coverage.txt
-            coverage.html
+            COVERAGE.md
+            pr-section.md
+
+      - name: Update PR description and line comments
+        if: steps.pr.outputs.number != ''
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const { owner, repo } = context.repo;
+            const pull_number = Number(process.env.PR_NUMBER);
+
+            // 1. Replace (or append) the coverage section in the PR description,
+            //    leaving the rest of the description untouched.
+            const section = fs.readFileSync('pr-section.md', 'utf8').trim();
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            const re = /<!-- coverage:start -->[\s\S]*?<!-- coverage:end -->/;
+            const old = pr.body || '';
+            const body = re.test(old)
+              ? old.replace(re, () => section)
+              : [old.trimEnd(), section].filter(Boolean).join('\n\n');
+            if (body !== old) {
+              await github.rest.pulls.update({ owner, repo, pull_number, body });
+            }
+
+            // 2. Remove the previous run's line comments so they never go stale.
+            const marker = '<!-- coverage-bot -->';
+            const existing = await github.paginate(github.rest.pulls.listReviewComments,
+              { owner, repo, pull_number, per_page: 100 });
+            for (const c of existing.filter(c => c.body.includes(marker))) {
+              await github.rest.pulls.deleteReviewComment({ owner, repo, comment_id: c.id });
+            }
+
+            // 3. Comment on new lines that tests don't cover (only produced
+            //    when total coverage is below the threshold).
+            const comments = fs.existsSync('comments.json')
+              ? JSON.parse(fs.readFileSync('comments.json', 'utf8')) : [];
+            for (const c of comments) {
+              const params = { owner, repo, pull_number, commit_id: process.env.HEAD_SHA,
+                               path: c.path, line: c.line, side: 'RIGHT', body: c.body };
+              if (c.start_line) Object.assign(params, { start_line: c.start_line, start_side: 'RIGHT' });
+              try {
+                await github.rest.pulls.createReviewComment(params);
+              } catch (e) {
+                core.warning(`Could not comment on ${c.path}:${c.line}: ${e.message}`);
+              }
+            }
+            core.info(`Posted ${comments.length} coverage comment(s) on PR #${pull_number}`);
+
+      - name: Commit COVERAGE.md
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if [ -z "$(git status --porcelain -- COVERAGE.md)" ]; then
+            echo "COVERAGE.md is up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add COVERAGE.md
+          git commit -m "chore: update COVERAGE.md [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
 
       - name: Enforce coverage threshold
+        if: steps.cov.outputs.below == 'true'
         run: |
-          total=${{ steps.coverage.outputs.total }}
-          if awk -v t="$total" -v min="$COVERAGE_THRESHOLD" 'BEGIN { exit !(t < min) }'; then
-            echo "::error::Coverage ${total}% is below the ${COVERAGE_THRESHOLD}% threshold"
-            exit 1
-          fi
-          echo "Coverage ${total}% meets the ${COVERAGE_THRESHOLD}% threshold"
+          echo "::error::Coverage ${{ steps.cov.outputs.total }}% is below the ${COVERAGE_THRESHOLD}% threshold"
+          exit 1

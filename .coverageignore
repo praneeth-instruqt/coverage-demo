@@ -1,0 +1,11 @@
+# Files and directories listed here are excluded from the overall coverage
+# percentage (they still appear in COVERAGE.md under "Excluded").
+#
+# One entry per line, paths relative to the repo root:
+#   internal/legacy/          a whole directory
+#   cmd/server/main.go        a single file
+#   internal/*/mock_*.go      a glob on the full path
+#   *_gen.go                  a glob on the file name (no "/" in the pattern)
+
+# CI tooling, not application code.
+tools/
