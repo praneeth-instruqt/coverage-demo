@@ -162,3 +162,11 @@ func IsValidationError(err error) bool {
 		errors.Is(err, ErrDescriptionTooLong) ||
 		errors.Is(err, ErrInvalidPriority)
 }
+
+// Overdue reports whether t is past its due date and not completed.
+func (t Todo) Overdue(now time.Time) bool {
+	if t.Completed || t.DueDate == nil {
+		return false
+	}
+	return now.After(*t.DueDate)
+}
