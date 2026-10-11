@@ -2,6 +2,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -19,7 +21,7 @@ type Config struct {
 // Load reads settings using getenv (typically os.Getenv).
 //
 //	ADDR             listen address        (default ":8080")
-//	JWT_SECRET       HMAC signing key      (required, >= 32 bytes)
+//	JWT_SECRET       HMAC signing key      (>= 32 bytes; random per start if unset)
 //	TOKEN_TTL        token lifetime        (default "24h")
 //	HASH_ITERATIONS  PBKDF2 iterations     (default 600000)
 func Load(getenv func(string) string) (Config, error) {
@@ -31,8 +33,14 @@ func Load(getenv func(string) string) (Config, error) {
 	if cfg.Addr == "" {
 		cfg.Addr = ":8080"
 	}
+	if cfg.JWTSecret == "" {
+		// Without a configured secret, tokens are only valid until restart.
+		b := make([]byte, 32)
+		_, _ = rand.Read(b)
+		cfg.JWTSecret = hex.EncodeToString(b)
+	}
 	if len(cfg.JWTSecret) < 32 {
-		return Config{}, errors.New("JWT_SECRET must be set and at least 32 bytes long")
+		return Config{}, errors.New("JWT_SECRET must be at least 32 bytes long")
 	}
 	if v := getenv("TOKEN_TTL"); v != "" {
 		d, err := time.ParseDuration(v)

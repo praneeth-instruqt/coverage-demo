@@ -39,12 +39,22 @@ func TestLoadOverrides(t *testing.T) {
 	}
 }
 
+func TestLoadGeneratesSecret(t *testing.T) {
+	a, err := Load(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := Load(env(nil))
+	if len(a.JWTSecret) < 32 || a.JWTSecret == b.JWTSecret {
+		t.Errorf("want distinct random secrets of >= 32 bytes, got %q and %q", a.JWTSecret, b.JWTSecret)
+	}
+}
+
 func TestLoadErrors(t *testing.T) {
 	tests := map[string]struct {
 		env  map[string]string
 		want string
 	}{
-		"missing secret":  {map[string]string{}, "JWT_SECRET"},
 		"short secret":    {map[string]string{"JWT_SECRET": "short"}, "JWT_SECRET"},
 		"bad ttl":         {map[string]string{"JWT_SECRET": secret, "TOKEN_TTL": "soon"}, "TOKEN_TTL"},
 		"negative ttl":    {map[string]string{"JWT_SECRET": secret, "TOKEN_TTL": "-1h"}, "TOKEN_TTL"},

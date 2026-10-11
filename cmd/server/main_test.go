@@ -69,8 +69,8 @@ func TestRunServesAndShutsDown(t *testing.T) {
 }
 
 func TestRunConfigError(t *testing.T) {
-	if err := run(context.Background(), discard, testEnv(nil)); err == nil {
-		t.Error("expected error for missing JWT_SECRET")
+	if err := run(context.Background(), discard, testEnv(map[string]string{"JWT_SECRET": "short"})); err == nil {
+		t.Error("expected error for short JWT_SECRET")
 	}
 }
 

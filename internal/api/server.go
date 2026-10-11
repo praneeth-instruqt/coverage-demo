@@ -45,12 +45,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
 	mux.HandleFunc("GET /api/v1/auth/me", s.requireAuth(s.handleMe))
 
-	mux.HandleFunc("GET /api/v1/todos", s.requireAuth(s.handleListTodos))
-	mux.HandleFunc("POST /api/v1/todos", s.requireAuth(s.handleCreateTodo))
-	mux.HandleFunc("DELETE /api/v1/todos/completed", s.requireAuth(s.handleDeleteCompleted))
-	mux.HandleFunc("GET /api/v1/todos/{id}", s.requireAuth(s.handleGetTodo))
-	mux.HandleFunc("PATCH /api/v1/todos/{id}", s.requireAuth(s.handleUpdateTodo))
-	mux.HandleFunc("DELETE /api/v1/todos/{id}", s.requireAuth(s.handleDeleteTodo))
+	mux.HandleFunc("GET /api/v1/todos", s.optionalAuth(s.handleListTodos))
+	mux.HandleFunc("POST /api/v1/todos", s.optionalAuth(s.handleCreateTodo))
+	mux.HandleFunc("DELETE /api/v1/todos/completed", s.optionalAuth(s.handleDeleteCompleted))
+	mux.HandleFunc("GET /api/v1/todos/{id}", s.optionalAuth(s.handleGetTodo))
+	mux.HandleFunc("PATCH /api/v1/todos/{id}", s.optionalAuth(s.handleUpdateTodo))
+	mux.HandleFunc("DELETE /api/v1/todos/{id}", s.optionalAuth(s.handleDeleteTodo))
 
 	return withRequestID(s.withLogging(s.withRecover(mux)))
 }

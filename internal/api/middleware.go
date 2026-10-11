@@ -21,7 +21,10 @@ const (
 
 const requestIDHeader = "X-Request-ID"
 
-// userIDFrom returns the authenticated user's ID set by requireAuth.
+// AnonymousUserID owns the todos of requests made without a token.
+const AnonymousUserID = "anonymous"
+
+// userIDFrom returns the user ID set by requireAuth or optionalAuth.
 func userIDFrom(ctx context.Context) string {
 	id, _ := ctx.Value(userIDKey).(string)
 	return id
@@ -121,5 +124,18 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userIDKey, claims.Subject)))
+	}
+}
+
+// optionalAuth lets requests without an Authorization header through as
+// AnonymousUserID; a header that is present is validated like requireAuth.
+func (s *Server) optionalAuth(next http.HandlerFunc) http.HandlerFunc {
+	authed := s.requireAuth(next)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			next(w, r.WithContext(context.WithValue(r.Context(), userIDKey, AnonymousUserID)))
+			return
+		}
+		authed(w, r)
 	}
 }

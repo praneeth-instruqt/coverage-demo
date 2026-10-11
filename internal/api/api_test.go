@@ -226,7 +226,7 @@ func TestAuthMiddleware(t *testing.T) {
 		header string
 		msg    string
 	}{
-		"no header":        {"", "missing"},
+		"no header":        {"", ""},
 		"wrong scheme":     {"Basic abc", "missing"},
 		"empty token":      {"Bearer ", "missing"},
 		"garbage token":    {"Bearer abc.def.ghi", "invalid token"},
@@ -256,24 +256,31 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 }
 
-func TestAllTodoRoutesRequireAuth(t *testing.T) {
+func TestMeRequiresAuth(t *testing.T) {
 	e := newTestEnv(t, nil)
-	for _, r := range []struct{ method, path string }{
-		{"GET", "/api/v1/auth/me"},
-		{"GET", "/api/v1/todos"},
-		{"POST", "/api/v1/todos"},
-		{"DELETE", "/api/v1/todos/completed"},
-		{"GET", "/api/v1/todos/x"},
-		{"PATCH", "/api/v1/todos/x"},
-		{"DELETE", "/api/v1/todos/x"},
-	} {
-		res := e.do(r.method, r.path, "", nil)
-		if res.Code != http.StatusUnauthorized {
-			t.Errorf("%s %s = %d, want 401", r.method, r.path, res.Code)
-		}
-		if res.Header().Get("WWW-Authenticate") == "" {
-			t.Errorf("%s %s missing WWW-Authenticate", r.method, r.path)
-		}
+	res := e.do("GET", "/api/v1/auth/me", "", nil)
+	expectStatus(t, res, http.StatusUnauthorized, "unauthorized")
+	if res.Header().Get("WWW-Authenticate") == "" {
+		t.Error("missing WWW-Authenticate")
+	}
+}
+
+func TestTodosWithoutToken(t *testing.T) {
+	e := newTestEnv(t, nil)
+	token, _ := e.register("owner@example.com")
+	e.createTodo(token, map[string]any{"title": "private"})
+
+	anon := e.createTodo("", map[string]any{"title": "shared"})
+
+	// Anonymous requests only see anonymous todos.
+	var list struct {
+		Items []todo.Todo `json:"items"`
+	}
+	res := e.do("GET", "/api/v1/todos", "", nil)
+	expectStatus(t, res, http.StatusOK, "")
+	res.decode(&list)
+	if len(list.Items) != 1 || list.Items[0].ID != anon.ID {
+		t.Errorf("anonymous list = %+v, want only %s", list.Items, anon.ID)
 	}
 }
 
