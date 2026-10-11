@@ -26,14 +26,14 @@ make docker                    # build container image
 
 | Variable          | Default  | Description                                   |
 |-------------------|----------|-----------------------------------------------|
-| `JWT_SECRET`      | required | HMAC signing key, at least 32 bytes           |
+| `JWT_SECRET`      | random   | HMAC signing key, at least 32 bytes. Unset: a random key per start, so tokens die on restart |
 | `ADDR`            | `:8080`  | Listen address                                |
 | `TOKEN_TTL`       | `24h`    | Access token lifetime (Go duration)           |
 | `HASH_ITERATIONS` | `600000` | PBKDF2 iterations                             |
 
 ## API
 
-Every `/api/v1/todos` route and `/api/v1/auth/me` need `Authorization: Bearer <token>`.
+`/api/v1/auth/me` needs `Authorization: Bearer <token>`. On `/api/v1/todos` routes the token is optional: without one, requests share the `anonymous` user's todos; a token that is sent must be valid.
 
 | Method | Path                         | Description                              |
 |--------|------------------------------|------------------------------------------|
