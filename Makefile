@@ -1,7 +1,7 @@
 .PHONY: run build test cover lint fmt vet docker clean
 
 BIN := bin/todo-server
-COVERAGE_THRESHOLD ?= 85
+COVERAGE_THRESHOLD ?= 96
 
 run:
 	JWT_SECRET=$${JWT_SECRET:-dev-secret-change-me-dev-secret-change-me} go run ./cmd/server
