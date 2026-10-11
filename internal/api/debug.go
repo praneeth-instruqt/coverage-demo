@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"runtime"
 	"time"
@@ -32,4 +33,8 @@ func DebugHandler() http.HandlerFunc {
 			Uptime:     time.Since(startedAt).Round(time.Second).String(),
 		})
 	}
+}
+
+func PrintSomething() {
+	fmt.Println("print something")
 }
