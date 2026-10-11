@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  COVERAGE_THRESHOLD: "85"
+  COVERAGE_THRESHOLD: "96"
 
 jobs:
   test:
