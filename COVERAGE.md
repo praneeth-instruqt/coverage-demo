@@ -27,7 +27,6 @@ Files listed in `.coverageignore` are not counted toward the overall percentage.
 
 | File | Statements | Covered | Coverage |
 |---|---:|---:|---:|
-| `internal/api/debug.go` | 4 | 0 | 0.0% |
 | `tools/coverage/main.go` | 80 | 73 | 91.2% |
 | `tools/coverage/render.go` | 67 | 67 | 100.0% |
 | `tools/coverage/report.go` | 149 | 147 | 98.6% |
