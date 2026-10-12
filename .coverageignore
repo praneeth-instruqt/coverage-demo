@@ -9,3 +9,4 @@
 
 # CI tooling, not application code.
 tools/
+internal/api/debug.go
